@@ -1,0 +1,3 @@
+2021-06-21 09:38:27,174: DEBUG - Starting new HTTPS connection (1): api.covid19api.com:443
+2021-06-21 09:38:27,777: DEBUG - https://api.covid19api.com:443 "GET /countries HTTP/1.1" 200 None
+2021-06-21 09:38:27,777: INFO - Data is up to date!

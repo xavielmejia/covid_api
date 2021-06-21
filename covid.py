@@ -14,8 +14,8 @@ import sys
 import os
 import sqlalchemy
 
-FORMAT = '%(asctime)s  %(message)s'
-logging.basicConfig(format=FORMAT)
+FORMAT = '%(asctime)s: %(levelname)s - %(message)s'
+logging.basicConfig(filename='log.txt', format=FORMAT)
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
@@ -45,7 +45,7 @@ def insert_data(con, country, start_date=None):
             
             # validate if the start_date parameter is None, if yes then use params else load all data
             if start_date - datetime.timedelta(days=1)==end_date:
-                logger.debug('Data is up to date!')
+                logger.info('Data is up to date!')
                 sys.exit(0)
             elif start_date!=None:
                 response_data = requests.get(url_data, params=params )
@@ -54,48 +54,49 @@ def insert_data(con, country, start_date=None):
 
             # validate the status code return by the request
             if response_data.status_code==200:
-                logger.debug('Data have been read succesfully!')
+                logger.info('Data have been read succesfully!')
                 json_result = response_data.json()
                 df = pd.DataFrame(json_result)
-                logger.debug('Process has finalized')
                 
-                # try to save data to database
+                # save data to postgres database
                 try:
                     df.to_sql('xm_stg_covid_api', con_pg, if_exists='append', index=False)
-                    logger.debug('Data inserted sucessfully in postgres database!')
+                    logger.info('Data inserted sucessfully in postgres database!')
                 except:
                     err_type = str(sys.exc_info()[0])
                     err_msg = str(sys.exc_info()[1])
-                    logger.debug(f'Somethig went wrong with the connection to postgres, error type: {err_type}: error message: {err_msg}')
+                    logger.info(f'Somethig went wrong with the connection to postgres, error type: {err_type}: error message: {err_msg}')
 
             # handle response status different from 200
             elif response_data.status_code==401:
-                logger.debug('Response status was 401 - unathorized: your request requires some additional permissions')
+                logger.info('Response status was 401 - unathorized: your request requires some additional permissions')
             elif response_data.status_code==404:
-                logger.debug('Response status was 404 - not found: the request resource does not exist')
+                logger.info('Response status was 404 - not found: the request resource does not exist')
             elif response_data.status_code==405:
-                logger_data.debug('Response status was 401 - method not allowed: the endpoint does not allow for that specific HTTP method')
+                logger_data.info('Response status was 401 - method not allowed: the endpoint does not allow for that specific HTTP method')
             elif response_data.status_code==500:
-                logger.debug('Response status was 500 - Internal Server Error: your request was not expected and probably broke something on the server side')
+                logger.info('Response status was 500 - Internal Server Error: your request was not expected and probably broke something on the server side')
             else:
-                logger.debug(f'Response status was {response_data.status_code} - {response_data.reason}')  
+                logger.info(f'Response status was {response_data.status_code} - {response_data.reason}')  
+        else:
+            logger.error('Country is not in the list of available countries')
     else:
-        logger.debug(f'Response status from countries was {response_countries.status_code} - {response_countries.status_code}')
+        logger.error(f'Response status from countries was {response_countries.status_code} - {response_countries.status_code}')
 
 
 # connect to postgres database
 try:
     con_pg = sqlalchemy.create_engine(os.environ.get('POSTGRES_POSTGRES'))
     if con_pg==None:
-        logger.debug('The connection is returning a None object, situation needs to be validated, program has exited')
+        logger.error('The connection is returning a None object, situation needs to be validated, program has exited')
         sys.exit(1)
 except psycopg2.OperationalError as e:
-    logger.debug(f'There was an operational error when trying to connect to postgres, error: {str(e)}, program has exited')
+    logger.error(f'There was an operational error when trying to connect to postgres, error: {str(e)}, program has exited')
     sys.exit(1)
 except:
     error_type = str(sys.exc_info()[0])
     error_message = str(sys.exc_info()[1])
-    logger.debug('Something went wrong when trying to connect to the database, error: {error_type}; error message: {error_message}, program has exited')
+    logger.info('Something went wrong when trying to connect to the database, error: {error_type}; error message: {error_message}, program has exited')
     sys.exit(1)
 
 # validate if table exists in postgres database
@@ -108,6 +109,7 @@ where schemaname='public'
 '''
 df_tbl_exists = pd.read_sql(query_tbl_exists, con_pg)
 
+# country to select data from
 country = 'dominican republic'
 
 # if the resulting value of the dataframe exist in the database
@@ -128,7 +130,7 @@ if not(df_tbl_exists.empty) and df_tbl_exists.values[0][0]=='xm_stg_covid_api':
         sys.exit(0)
 
 # if table does not exists or there is not start_date create it for the first time
-logger.debug('Table created succesfully!')
+logger.info('Table created succesfully!')
 insert_data(con=con_pg, country=country)
 
 
